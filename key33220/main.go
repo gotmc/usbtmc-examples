@@ -18,19 +18,29 @@ import (
 
 var (
 	debugLevel uint
+	address    string
 )
 
 func init() {
+	// Get the debug level from CLI flag.
 	const (
 		defaultLevel = 1
 		debugUsage   = "USB debug level"
 	)
 	flag.UintVar(&debugLevel, "debug", defaultLevel, debugUsage)
 	flag.UintVar(&debugLevel, "d", defaultLevel, debugUsage+" (shorthand)")
+
+	// Get VISA address from CLI flag.
+	flag.StringVar(
+		&address,
+		"visa",
+		"USB0::2391::1031::MY44035849::INSTR",
+		"VISA address of Keysight 33220A",
+	)
 }
 
 func main() {
-	// Parse the config flags to determine the config JSON filename
+	// Parse the flags
 	flag.Parse()
 
 	// Create new USBTMC context and new device.
@@ -41,7 +51,8 @@ func main() {
 	}
 	ctx.SetDebugLevel(int(debugLevel))
 
-	fg, err := ctx.NewDevice("USB0::2391::1031::MY44035849::INSTR")
+	log.Printf("Using address: %s", address)
+	fg, err := ctx.NewDevice(address)
 	if err != nil {
 		log.Fatalf("NewDevice error: %s", err)
 	}
@@ -67,7 +78,7 @@ func main() {
 		if err != nil {
 			log.Printf("Error reading: %v", err)
 		} else {
-			log.Printf("Read %d bytes for %s? = %s", bytesRead, q, p[:bytesRead])
+			log.Printf("Read %d bytes for %s = %s", bytesRead, q, p[:bytesRead])
 		}
 	}
 
