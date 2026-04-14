@@ -6,6 +6,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"log"
 	"time"
@@ -33,11 +34,11 @@ func main() {
 
 	// Create new USBTMC context and new device.
 	start := time.Now()
-	ctx, err := usbtmc.NewContext()
+	usbCtx, err := usbtmc.NewContext()
 	if err != nil {
 		log.Fatalf("Error creating new USB context: %s", err)
 	}
-	ctx.SetDebugLevel(int(debugLevel))
+	usbCtx.SetDebugLevel(int(debugLevel))
 
 	// On power up, the U2751A shows PID 15896 (0x3E18), and I can't communicate
 	// properly. After running the Agilent Measurement Manager, the PID shows
@@ -45,12 +46,13 @@ func main() {
 	// I wasn't able to get close to working until the Agilent Measurement
 	// Manager (AMM) udpated the firmware to 1.08. When the PID is correct, it
 	// shows VISA address `USB0::0x0957::0x3D18::MY51010003::0::INSTR`
-	sw, err := ctx.NewDeviceByVIDPID(2391, 15640)
+	sw, err := usbCtx.NewDeviceByVIDPID(2391, 15640)
 	if err != nil {
 		log.Fatalf("NewDevice error: %s", err)
 	}
 	log.Printf("%.2fs to create new device.", time.Since(start).Seconds())
 
+	ctx := context.Background()
 	sw.WriteString("rout:clos (@302:304)")
 	// time.Sleep(time.Second * 2)
 	// sw.WriteString("rout:clos (@302:304)")
@@ -59,7 +61,7 @@ func main() {
 	queries := []string{"*idn?", "rout:clos? (@301:305)"}
 
 	// Query using the query method
-	queryRange(sw, queries)
+	queryRange(ctx, sw, queries)
 
 	sw.WriteString("rout:open (@302:304)")
 
@@ -68,15 +70,15 @@ func main() {
 	if err != nil {
 		log.Printf("error closing sw: %s", err)
 	}
-	err = ctx.Close()
+	err = usbCtx.Close()
 	if err != nil {
 		log.Printf("Error closing context: %s", err)
 	}
 }
 
-func queryRange(sw *usbtmc.Device, r []string) {
+func queryRange(ctx context.Context, sw *usbtmc.Device, r []string) {
 	for _, q := range r {
-		s, err := sw.Query(q)
+		s, err := sw.Query(ctx, q)
 		if err != nil {
 			log.Printf("Error reading: %v", err)
 		} else {

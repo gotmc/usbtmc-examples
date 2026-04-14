@@ -6,6 +6,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"io"
@@ -45,28 +46,29 @@ func main() {
 
 	// Create new USBTMC context and new device.
 	start := time.Now()
-	ctx, err := usbtmc.NewContext()
+	usbCtx, err := usbtmc.NewContext()
 	if err != nil {
 		log.Fatalf("Error creating new USB context: %s", err)
 	}
-	ctx.SetDebugLevel(int(debugLevel))
+	usbCtx.SetDebugLevel(int(debugLevel))
 
 	log.Printf("Using address: %s", address)
-	fg, err := ctx.NewDevice(address)
+	fg, err := usbCtx.NewDevice(address)
 	if err != nil {
 		log.Fatalf("NewDevice error: %s", err)
 	}
 	log.Printf("%.2fs to create new device.", time.Since(start).Seconds())
 
 	// Configure function generator using different write methods.
+	ctx := context.Background()
 	numCycles := 131
 	period := 0.112
 	fg.WriteString("*CLS\n")                              // Write using usbtmc.WriteString
 	io.WriteString(fg, "burst:state off\n")               // Write using io.WriteString
 	fg.Write([]byte("apply:sinusoid 2340, 0.1, 0.0\n"))   // Write using byte slice
 	fmt.Fprintf(fg, "burst:internal:period %f\n", period) // Write using fmt.Fprint
-	fg.Command("burst:ncycles %d", numCycles)             // Write using usbtmc.Command
-	fg.Command("burst:state on")                          // Command appends a newline.
+	fg.Command(ctx, "burst:ncycles %d", numCycles)        // Write using usbtmc.Command
+	fg.Command(ctx, "burst:state on")                     // Command appends a newline.
 
 	queries := []string{"volt?", "freq?", "volt:offs?", "volt:unit?"}
 
@@ -83,22 +85,22 @@ func main() {
 	}
 
 	// Query using the query method
-	queryRange(fg, queries)
+	queryRange(ctx, fg, queries)
 
 	// Close the function generator and USBTMC context and check for errors.
 	err = fg.Close()
 	if err != nil {
 		log.Printf("error closing fg: %s", err)
 	}
-	err = ctx.Close()
+	err = usbCtx.Close()
 	if err != nil {
 		log.Printf("Error closing context: %s", err)
 	}
 }
 
-func queryRange(fg *usbtmc.Device, r []string) {
+func queryRange(ctx context.Context, fg *usbtmc.Device, r []string) {
 	for _, q := range r {
-		s, err := fg.Query(q)
+		s, err := fg.Query(ctx, q)
 		if err != nil {
 			log.Printf("Error reading: %v", err)
 		} else {
